@@ -6,14 +6,9 @@ import os
 def generate_wordlist(length):
     """
     Generates a wordlist of a specified fixed length using a comprehensive character set.
-    """
-    # --- 1. Define the Comprehensive Character Set ---
-    
-    # 1. Letters (A-Z, a-z)
+    """    
     all_letters = string.ascii_letters 
     
-    # 2. Specific Symbols (from your list)
-    # Note: string.punctuation includes many of these, but we'll use your explicit list.
     specific_symbols = r". , ; : ? ! ( ) [ ] { } - _ @ # $ % ^ & * + = / \ | ~"
     # Remove spaces and combine the rest, adding single space back if needed
     symbol_set = "".join(specific_symbols.split()) 
@@ -21,12 +16,9 @@ def generate_wordlist(length):
     # For a true "all characters" set, we typically add numbers (0-9) as well
     all_numbers = string.digits
     
-    # Combine all characters into one set for permutation
     # The set() operation ensures each character is only used once
     CHARACTERS = "".join(sorted(set(all_letters + all_numbers + symbol_set)))
-    
-    # --- 2. Configuration and Warning ---
-    
+        
     output_filename = f"wordlist_len_{length}.txt"
     total_combinations = len(CHARACTERS) ** length
     
@@ -50,7 +42,6 @@ def generate_wordlist(length):
     
     try:
         with open(output_filename, 'w') as f:
-            # itertools.product generates the Cartesian product (all combinations)
             # The 'repeat=length' ensures the fixed length is used
             for combination in itertools.product(CHARACTERS, repeat=length):
                 word = "".join(combination)
@@ -66,9 +57,6 @@ def generate_wordlist(length):
 
 
 if __name__ == "__main__":
-    # >>> CHANGE THE LENGTH HERE <<<
-    # Setting this to 12 (as requested) will likely crash your system.
-    # Recommended length for testing is 3 or 4.
-    FIXED_LENGTH = 4 
+    FIXED_LENGTH = 12 
     
     generate_wordlist(FIXED_LENGTH)
