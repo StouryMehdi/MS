@@ -7,8 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 # Define common ports globally so all functions can access it
 COMMON_PORTS = [
-    21, 22, 23, 25, 53, 80, 110, 135, 139, 143, 443, 445, 
-    993, 995, 1723, 3306, 3389, 5900, 8080, 8443
+    21, 22, 23, 25, 80, 139, 443, 445, 3389, 8080, 8443
 ]
 
 def get_connected_network_simple():
@@ -135,7 +134,7 @@ def scan_common_ports(target_ip):
     def check_port(port):
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                sock.settimeout(1)
+                sock.settimeout(0.2)
                 result = sock.connect_ex((target_ip, port))
                 if result == 0:
                     open_ports.append(port)
@@ -143,7 +142,7 @@ def scan_common_ports(target_ip):
             pass
     
     # Multi-threaded port scanning using global COMMON_PORTS
-    with ThreadPoolExecutor(max_workers=100) as executor:
+    with ThreadPoolExecutor(max_workers=200) as executor:
         executor.map(check_port, COMMON_PORTS)
     
     return sorted(open_ports)

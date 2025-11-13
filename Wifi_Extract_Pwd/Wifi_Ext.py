@@ -6,71 +6,99 @@ import re
 # --- Configuration ---
 # Create a unique, dated filename
 date_str = datetime.datetime.now().strftime("%Y-%m-%d")
-output_file = f"File_List_Only_{date_str}.txt"
-temp_file = "temp_file_list.txt"
+output_file = f"WiFi_Passwords_Only_{date_str}.txt"
+temp_file = "temp_passwords.txt"
 full_output_path = os.path.join(os.getcwd(), output_file)
 full_temp_path = os.path.join(os.getcwd(), temp_file)
 
-print("File Listing Utility")
-print("====================")
-print(f"[*] Listing files to: {output_file}")
+print("WiFi Password Extractor")
+print("=======================")
+print(f"[*] Extracting WiFi passwords to: {output_file}")
 print("-" * 30)
 
-# --- 1. Equivalent of netsh wlan show profiles (Listing Directory Contents) ---
-# We use 'ls' (Linux/macOS) or 'dir' (Windows) to get system data
+# --- 1. Get WiFi Profiles ---
+extracted_passwords = []
+
 try:
-    if os.name == 'nt': # Windows
-        command = ['cmd', '/c', 'dir', '/b']
-    else: # Linux/macOS
-        command = ['ls']
-        
-    # Execute the command
-    result = subprocess.run(command, capture_output=True, text=True, check=True)
-    directory_list = result.stdout.splitlines()
-
-except subprocess.CalledProcessError as e:
-    print(f"[ERROR] Failed to run system command: {e}")
-    directory_list = []
+    # Get list of WiFi profiles
+    result = subprocess.run(
+        ['netsh', 'wlan', 'show', 'profiles'],
+        capture_output=True,
+        text=True,
+        check=True
+    )
+    profiles_output = result.stdout
     
-# --- 2. Equivalent of Saving Passwords (Saving File List to Temp File) ---
-extracted_items = []
+    # Extract SSID names using regex
+    ssid_pattern = r'All User Profile\s*:\s*(.+)'
+    ssids = re.findall(ssid_pattern, profiles_output)
+    
+    print(f"[*] Found {len(ssids)} WiFi profiles")
+    print()
+    
+    # --- 2. Extract passwords for each profile ---
+    for ssid in ssids:
+        ssid = ssid.strip()
+        if ssid:
+            print(f"[*] Extracting password for: {ssid}")
+            try:
+                # Get profile details with key in clear text
+                result = subprocess.run(
+                    ['netsh', 'wlan', 'show', 'profile', f'name={ssid}', 'key=clear'],
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
+                profile_output = result.stdout
+                
+                # Extract the password (Key Content value)
+                key_pattern = r'Key Content\s*:\s*(.+)'
+                password_match = re.search(key_pattern, profile_output)
+                
+                if password_match:
+                    password = password_match.group(1).strip()
+                    if password:
+                        extracted_passwords.append(password)
+                        print(f"    Password found: {password}")
+                else:
+                    print(f"    No password found (open network)")
+                    
+            except subprocess.CalledProcessError as e:
+                print(f"    [ERROR] Failed to extract password for {ssid}")
+    
+except subprocess.CalledProcessError as e:
+    print(f"[ERROR] Failed to run netsh command: {e}")
+    print("[!] Note: This script requires administrator privileges")
 
-print("[*] Processing items (Listing files and folders)...")
-for item in directory_list:
-    # Example "extraction" and cleanup logic
-    if item.strip() and not item.startswith(temp_file):
-        extracted_items.append(item.strip())
-        print(f"    Found: {item.strip()}")
-
-# Write to temporary file
+# --- 3. Write to temporary file ---
 with open(full_temp_path, "w") as f:
-    for item in extracted_items:
-        f.write(item + "\n")
+    for password in extracted_passwords:
+        f.write(password + "\n")
 
+# --- 4. Remove Duplicates and Create Final File ---
+unique_passwords = []
+seen_passwords = set()
 
-# --- 3. Equivalent of Removing Duplicates and Creating Final File ---
-unique_items = []
-seen_items = set()
-
-# Read, sort, and filter unique items
+# Read, sort, and filter unique passwords
 with open(full_temp_path, 'r') as f:
-    # Sort the lines first, then iterate for uniqueness
     for line in sorted(f.readlines()):
-        current_item = line.strip()
-        if current_item and current_item not in seen_items:
-            unique_items.append(current_item)
-            seen_items.add(current_item)
+        current_password = line.strip()
+        if current_password and current_password not in seen_passwords:
+            unique_passwords.append(current_password)
+            seen_passwords.add(current_password)
 
 # Write final output
 with open(full_output_path, "w") as f:
-    f.write("System File List (unique)\n")
-    f.write("=========================\n")
-    f.write('\n'.join(unique_items) + '\n')
+    f.write("WiFi Passwords (unique)\n")
+    f.write("======================\n")
+    f.write("\n")
+    f.write('\n'.join(unique_passwords) + '\n')
 
 # Clean up temporary file
 os.remove(full_temp_path)
 
 print("\n" + "-" * 30)
-print(f"[*] All unique items saved to: {full_output_path}")
+print(f"[*] All unique passwords saved to: {full_output_path}")
+print("[!] Total unique passwords: " + str(len(unique_passwords)))
 print("Press Enter to exit.")
 input()
